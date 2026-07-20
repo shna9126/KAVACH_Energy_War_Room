@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KAVACH War Room</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/frontend/styles.css" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
+  />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <main class="layout">
+    <header class="hero">
+      <div class="hero-top">
+        <div>
+          <h1>KAVACH War Room</h1>
+          <p class="hero-subtitle">AI Decision Intelligence Platform</p>
+        </div>
+        <div class="hero-system-meta">
+          <span class="live-dot">LIVE</span>
+          <span id="statusPill" class="pill">idle</span>
+        </div>
+      </div>
+      <div class="hero-actions">
+        <button id="refreshBtn">Refresh Panels</button>
+        <button id="guidedDemoBtn" class="btn-secondary">Start Guided Demo</button>
+        <button id="triggerBtn" class="wr-power" aria-label="Activate War Room" title="Activate War Room">
+          <svg viewBox="0 0 36 36" fill="none" aria-hidden="true">
+            <path class="wr-arc" d="M10.5 7.5 A13 13 0 1 0 25.5 7.5" stroke-width="3" stroke-linecap="round"/>
+            <line x1="18" y1="3" x2="18" y2="17" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+          <span class="wr-label">POWER</span>
+        </button>
+      </div>
+      <div id="eventLabel" class="event-label"></div>
+    </header>
+
+    <section class="top-mission-banner" aria-label="Mission control banner">
+      <div class="top-mission-card">
+        <span>CURRENT MISSION</span>
+        <strong id="missionObjective">Maintain coverage of 1800 kbd</strong>
+        <button id="missionEditBtn" type="button" class="btn-secondary mission-edit-btn">Edit Mission</button>
+        <label class="mission-budget-label" for="missionImportBudget" title="Annual crude import budget used by the Economic Agent">
+          <span>Budget (USD bn / yr)</span>
+          <input
+            id="missionImportBudget"
+            type="number"
+            min="0"
+            step="5"
+            inputmode="decimal"
+            placeholder="220"
+            class="mission-budget-input"
+            aria-label="Annual crude import budget in USD billions" />
+          <span id="missionBudgetActive" class="mission-budget-hint" aria-live="polite"></span>
+        </label>
+      </div>
+      <div><span>DIGITAL TWIN</span><strong id="topTwinSync">-</strong></div>
+      <div><span>DECISION READINESS</span><strong id="topReadiness">-</strong></div>
+      <div><span>OPERATIONAL STATUS</span><strong id="topStatus">Live</strong></div>
+    </section>
+
+    <section id="pipelineProgress" class="pipeline-progress" aria-label="Pipeline execution progress">
+      <span data-step="collect"><strong>Ingestion</strong><em class="pp-pct">Waiting</em></span>
+      <span data-step="normalize"><strong>Normalize</strong><em class="pp-pct">Waiting</em></span>
+      <span data-step="twin"><strong>Digital Twin</strong><em class="pp-pct">Waiting</em></span>
+      <span data-step="reasoning"><strong>Reasoning</strong><em class="pp-pct">Waiting</em></span>
+      <span data-step="recommendation"><strong>Recommendation</strong><em class="pp-pct">Waiting</em></span>
+    </section>
+
+    <!-- Live market context ticker -->
+    <div id="marketTicker" class="market-ticker" aria-label="Live market context"></div>
+    <section class="ops-strip" aria-label="System and trigger operations">
+      <article id="sourceHealthPanel" class="ops-card" aria-live="polite">
+        <div class="ops-title">System Status</div>
+        <div id="sourceHealthRows" class="ops-rows"></div>
+      </article>
+      <article id="triggerExplainPanel" class="ops-card" aria-live="polite">
+        <div class="ops-title">Selected Because</div>
+        <div class="ops-metrics">
+          <div><span>Risk Score</span><strong id="selRiskScore">-</strong></div>
+          <div><span>Freshness</span><strong id="selFreshness">-</strong></div>
+          <div><span>Confidence</span><strong id="selConfidence">-</strong></div>
+          <div><span>Priority Rank</span><strong id="selPriorityRank">-</strong></div>
+        </div>
+        <div class="ops-subtitle">Other Candidates</div>
+        <ul id="selOutranked" class="ops-list"><li>Awaiting event selection...</li></ul>
+      </article>
+    </section>
+    <section id="freshnessStrip" class="freshness-strip" aria-label="Source freshness"></section>
+
+    <section class="mission-strip card" id="missionBar" aria-label="Operational mission">
+      <div class="mission-metrics">
+        <div><span>Throughput</span><strong id="missionThroughput">-</strong></div>
+        <div><span>Coverage</span><strong id="missionCoverage">-</strong></div>
+        <div><span>Risk</span><strong id="missionRisk">-</strong></div>
+        <div><span>Status</span><strong id="missionStatus">-</strong></div>
+      </div>
+    </section>
+
+    <input id="eventId" type="hidden" value="1" />
+    <input id="pipelineId" type="hidden" />
+
+    <section class="card exec-card" id="execSummaryCard">
+      <h2>Executive Summary</h2>
+      <p class="section-help">Decision snapshot before deep dive.</p>
+      <div class="metrics">
+        <div><span>What happened?</span><strong id="exRisk">-</strong></div>
+        <div><span>How serious?</span><strong id="exConf">-</strong></div>
+        <div><span>Why?</span><strong id="exDriver">-</strong></div>
+        <div><span>Business impact</span><strong id="exIndia">-</strong></div>
+        <div><span>What should I do?</span><strong id="exAction">-</strong></div>
+        <div><span>SPR action</span><strong id="exSpr">-</strong></div>
+        <div><span>Evidence quality</span><strong id="exEvidenceQuality">-</strong></div>
+         <div><span>Expected business outcome</span><strong id="exOutcome">-</strong></div>
+      </div>
+        <p id="exSeverityNote" class="section-help" style="margin:8px 0 0;">-</p>
+      <div class="conf-why" id="exConfWhyWrap">
+        <span class="conf-why-label">Confidence because</span>
+        <ul id="exConfWhy">
+          <li>Awaiting evidence.</li>
+        </ul>
+         <p id="exQualityDetail" class="section-help" style="margin:6px 0 0;">-</p>
+      </div>
+      <div class="conf-decomp" id="confDecompCard">
+        <span class="conf-why-label">System Confidence</span>
+        <div class="conf-decomp-grid">
+          <div><span>Evidence strength</span><strong id="cdEvidence">-</strong><em id="cdEvidenceWhy">-</em></div>
+          <div><span>Reasoning consistency</span><strong id="cdReasoning">-</strong><em id="cdReasoningWhy">-</em></div>
+          <div><span>Forecast reliability</span><strong id="cdSimulation">-</strong><em id="cdSimulationWhy">-</em></div>
+          <div><span>Decision confidence</span><strong id="cdFinal">-</strong><em id="cdFinalWhy">-</em></div>
+        </div>
+      </div>
+      <div class="trust-path" id="trustPathCard">
+        <span class="conf-why-label">Judge Trust Path</span>
+        <div class="trust-path-row">
+          <button type="button" class="trust-step" data-step="evidence">Evidence</button>
+          <button type="button" class="trust-step" data-step="reasoning">Reasoning</button>
+          <button type="button" class="trust-step" data-step="counter">Counter-reasoning</button>
+          <button type="button" class="trust-step" data-step="decision">Decision</button>
+          <button type="button" class="trust-step" data-step="validation">Validation</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card map-card" id="mapCard">
+        <p class="section-kicker">1. Situation</p>
+        <h2>Corridor Risk Map (Live)</h2>
+        <p class="section-help">Live event context and operational signal map.</p>
+        <div class="map-stage">
+          <div id="warMap" class="war-map" role="img" aria-label="Interactive war room map"></div>
+          <div id="mapLegend" class="map-legend">Risk: low</div>
+          <div id="eventSpotlight" class="event-spotlight" style="display:none;">
+            <div class="es-kicker">Primary Threat</div>
+            <div id="spotNode" class="es-node">-</div>
+            <div class="es-grid">
+              <div><span>Risk</span><strong id="spotRisk">-</strong></div>
+              <div><span>Confidence</span><strong id="spotConf">-</strong></div>
+              <div><span>Business impact</span><strong id="spotImpact">-</strong></div>
+            </div>
+            <p id="spotReason" class="es-reason">-</p>
+          </div>
+        </div>
+        <div class="map-layer-controls" id="mapLayerControls" aria-label="Map layer controls">
+          <label><input type="checkbox" data-layer="routes" aria-label="Routes" checked> Routes</label>
+          <label><input type="checkbox" data-layer="ais" aria-label="AIS tankers" checked> AIS tankers</label>
+          <label><input type="checkbox" data-layer="weatherAlerts" aria-label="Weather alerts" checked> Weather alerts</label>
+          <label><input type="checkbox" data-layer="aisAlerts" aria-label="AIS anomalies" checked> AIS anomalies</label>
+          <label><input type="checkbox" data-layer="heat" aria-label="Risk heat" checked> Risk heat</label>
+          <label><input type="checkbox" data-layer="procurement" aria-label="Procurement flows" checked> Procurement flows</label>
+          <label><input type="checkbox" data-layer="branch" aria-label="Branch overlay" checked> Branch overlay</label>
+        </div>
+        <div class="map-encoding-legend" aria-hidden="true">
+          <div class="mel-row"><span class="mel-swatch mel-arc"></span>Routes: muted observed, amber predicted, red disrupted</div>
+          <div class="mel-row"><span class="mel-swatch mel-procurement"></span>Procurement flows (violet arcs)</div>
+          <div class="mel-row"><span class="mel-swatch mel-weather"></span>Weather/ops stress rings</div>
+          <div class="mel-row"><span class="mel-swatch mel-ais-alert"></span>AIS anomaly rings</div>
+          <div class="mel-row"><span class="mel-swatch mel-branch"></span>Scenario branch overlay</div>
+        </div>
+        <div class="chip-row" id="mapOverlayBadges"></div>
+        <div id="incidentFeed" class="incident-feed">No active incident stream.</div>
+
+        <div class="map-subcards">
+          <div class="subcard" id="mapAiControls">
+            <h3>Map AI Controls</h3>
+            <div class="subcard-row">
+              <button id="explainEventBtn" type="button">Explain This Event</button>
+              <button id="playPropagationBtn" type="button" class="btn-secondary">Play Propagation</button>
+              <label class="toggle-inline" for="decisionModeToggle">
+                <input id="decisionModeToggle" type="checkbox" /> Decision Mode
+              </label>
+            </div>
+            <p class="subcard-hint" id="mapModeLabel">Mode: adaptive</p>
+            <div id="mapStoryCaption" class="map-story-caption">Story mode ready when pipeline data loads.</div>
+            <div id="mapStoryFlow" class="map-story-flow" aria-label="Current situation story flow"></div>
+          </div>
+
+          <div class="subcard" id="entityInspector">
+            <h3>Entity Inspector</h3>
+            <div class="subcard-row">
+              <select id="entitySelect" aria-label="Pick an entity to inspect">
+                <option value="">— pick a chokepoint / port / country —</option>
+              </select>
+              <button id="entityBtn" type="button" class="btn-secondary">Show Incidents</button>
+            </div>
+            <p class="subcard-hint" id="entityHint">Selecting an entity flies the map to it and pulls its recent incident timeline.</p>
+            <div id="incidentList" class="incident-list">
+              <p class="incident-empty">No incidents loaded.</p>
+            </div>
+          </div>
+
+          <div class="subcard" id="scenarioConsole">
+            <h3>Scenario Console (What-if)</h3>
+            <div class="subcard-row">
+              <select id="scenarioSelect" aria-label="Pick a what-if scenario">
+                <option value="">— pick a scenario —</option>
+              </select>
+              <button id="scenarioBtn" type="button">Simulate</button>
+              <button id="scenarioClearBtn" type="button" class="btn-secondary" title="Restore live state">Restore Live</button>
+            </div>
+            <p class="subcard-hint" id="scenarioHint">Every scenario runs on a temporary Digital Twin branch. Live state is never modified.</p>
+
+            <div class="scenario-outcome" id="scenarioOutcome">
+              <div class="so-head">
+                <span class="branch-pill" id="soName">branch</span>
+                <span class="so-title" id="soTitle">-</span>
+              </div>
+              <div class="so-sub" id="soSub">-</div>
+              <div class="chip-row" id="soChips"></div>
+              <div class="so-metrics" id="soMetrics"></div>
+              <div class="so-rationale" id="soRationale"></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card" id="reasoningCard">
+        <p class="section-kicker">2. Reasoning</p>
+        <h2>Reasoning</h2>
+        <p class="section-help">Observed evidence, derived logic, and model predictions.</p>
+        <div class="type-standard" aria-label="Observed inferred predicted standard">
+          <span class="type-chip type-observation">Observation</span>
+          <span class="type-chip type-inference">Inference</span>
+          <span class="type-chip type-prediction">Prediction</span>
+        </div>
+        <div class="metrics">
+          <div><span>Initial belief</span><strong id="hypConf">-</strong></div>
+          <div><span>Observed evidence</span><strong id="recConf">-</strong></div>
+          <div><span>Counter-evidence</span><strong id="disagreeFlag">-</strong></div>
+        </div>
+          <h3>Why Should I Care?</h3>
+          <p id="careBridge" class="wrap">No business impact bridge available yet.</p>
+          <h3>Why now?</h3>
+          <p id="whyNowText" class="wrap">No immediate catalyst summary yet.</p>
+        <h3>Hypothesis</h3>
+        <p id="hypText" class="wrap">No data loaded yet.</p>
+        <h3>Causal Chain <span id="causalChainSource" class="muted-inline"></span></h3>
+        <div id="reasoningEvidence" class="reasoning-evidence"></div>
+        <div id="causalChainSteps" class="causal-flow"></div>
+        <div id="affectedEntities" class="affected-entities"></div>
+        <h3>Red Team Rebuttal</h3>
+        <div id="rebuttalCard" class="redteam-card">
+          <p id="rebuttalText" class="wrap">-</p>
+          <div id="rebuttalMeta" style="display:none;">
+            <div class="redteam-strength">
+              <span class="rt-label">Challenge Strength <strong id="rtStrengthLevel">-</strong></span>
+              <div class="rt-bar-bg"><div id="rtStrengthBar" class="rt-bar-fill"></div></div>
+              <span id="rtStrengthPct" class="rt-pct"></span>
+            </div>
+            <div id="rtImpact" class="rt-impact"></div>
+            <ul id="disproofList" class="disproof-list"></ul>
+          </div>
+        </div>
+      </article>
+
+      <article class="card" id="refineryCard">
+        <p class="section-kicker">3. Forecast</p>
+        <h2>Refinery Impact</h2>
+        <div class="metrics">
+          <div><span>Healthy</span><strong id="refHealthy">-</strong></div>
+          <div><span>Watchlist</span><strong id="refWatch">-</strong></div>
+          <div><span>Critical</span><strong id="refCritical">-</strong></div>
+          <div><span>Affected refineries</span><strong id="refAffectedCount">-</strong></div>
+        </div>
+        <p id="refExecSummary" class="section-help">Awaiting refinery impact signal.</p>
+        <div id="refAffectedNames" class="ref-affected">No major impacts yet.</div>
+        <details id="refineryDetails" class="panel-details" style="margin-top:8px;">
+          <summary>View Refinery Metrics</summary>
+          <div id="refineryList" class="refinery-list"></div>
+        </details>
+      </article>
+
+      <article class="card" id="sprCard">
+        <p class="section-kicker">4. Recommended Actions</p>
+        <h2>SPR &amp; Replenishment Plan</h2>
+        <div class="metrics">
+          <div><span>SPR status</span><strong id="sprStatus">-</strong></div>
+          <div><span>Coverage</span><strong id="sprCoverageDays">-</strong></div>
+          <div><span>Recommendation</span><strong id="sprRecommendation">-</strong></div>
+        </div>
+        <p id="sprExecSummary" class="section-help">Awaiting policy recommendation.</p>
+        <details id="sprPlanDetails" class="panel-details" style="margin-top:8px;">
+          <summary>View Policy Analysis</summary>
+          <h3>Replenishment — <em>WHEN · HOW MUCH · FROM WHOM · AT WHAT PRICE</em></h3>
+          <div class="metrics">
+            <div><span>Start day</span><strong id="refillWhen">-</strong></div>
+            <div><span>Volume (mbbl)</span><strong id="refillVol">-</strong></div>
+            <div><span>Supplier</span><strong id="refillSupplier">-</strong></div>
+            <div><span>Grade</span><strong id="refillGrade">-</strong></div>
+            <div><span>Trigger $/bbl</span><strong id="refillPrice">-</strong></div>
+            <div><span>Spot $/bbl</span><strong id="refillSpot">-</strong></div>
+            <div><span>Cost $B</span><strong id="refillCost">-</strong></div>
+            <div><span>Savings $B</span><strong id="refillSavings">-</strong></div>
+            <div><span>SPR draw (mbd)</span><strong id="sprDraw">-</strong></div>
+            <div><span>Total drawn (mbbl)</span><strong id="sprTotal">-</strong></div>
+            <div><span>Cover before / after / refill (days)</span><strong id="sprCover">-</strong></div>
+          </div>
+          <p id="refillRationale" class="wrap muted-inline" style="margin-top:8px;">-</p>
+          <details style="margin-top:6px;">
+            <summary style="cursor:pointer; color:var(--muted);">Reserve health per site</summary>
+            <div id="reserveHealthList" class="wrap"></div>
+          </details>
+        </details>
+      </article>
+
+      <article class="card mc-card" id="forecastCard">
+        <h2>Scenario Forecast <span id="mcBranchTag" class="branch-pill" style="display:none;">branch</span></h2>
+        <p class="section-help">Expected price trajectory if current conditions persist.</p>
+        <p class="section-help" style="margin-top:-4px;">Powered by 10,000 Monte Carlo simulations.</p>
+        <div class="metrics mc-summary">
+          <div><span>Most likely</span><strong id="mcMostLikely">-</strong></div>
+          <div><span>Possible range</span><strong id="mcRange">-</strong></div>
+          <div><span>Expected duration</span><strong id="mcExpectedDuration">-</strong></div>
+        </div>
+        <details id="mcWhyDetails" class="panel-details" style="margin-top:8px;">
+          <summary>View Forecast Analysis</summary>
+          <div class="metrics mc-kpis" id="mcKpis" style="margin-top:8px;">
+            <div><span>Disruption prob</span><strong id="mcProb">-</strong></div>
+            <div><span>Price shock p50</span><strong id="mcPriceP50">-</strong></div>
+            <div><span>Price shock p10-p90</span><strong id="mcPriceBand">-</strong></div>
+            <div><span>Duration p50</span><strong id="mcDurP50">-</strong></div>
+            <div><span>Import bill Δ (rolling yr)</span><strong id="mcImportDelta">-</strong></div>
+          </div>
+          <div class="mc-toolbar">
+            <span class="mc-label">Horizon</span>
+            <div class="mc-pills" id="mcHorizonPills" role="tablist">
+              <button type="button" data-h="24h">24h</button>
+              <button type="button" data-h="72h">72h</button>
+              <button type="button" data-h="1wk" class="active">1wk</button>
+              <button type="button" data-h="1mo">1mo</button>
+            </div>
+            <span class="mc-label" style="margin-left:12px;">Metric</span>
+            <div class="mc-pills" id="mcMetricPills" role="tablist">
+              <button type="button" data-metric="price" class="active">Price shock</button>
+              <button type="button" data-metric="duration">Duration</button>
+            </div>
+          </div>
+          <div class="mc-chart-wrap">
+            <div class="mc-chart-title">Uncertainty fan · 24h → 1mo</div>
+            <canvas id="mcFanChart" class="mc-canvas" width="560" height="180"></canvas>
+          </div>
+          <div class="mc-chart-wrap">
+            <div class="mc-chart-title" id="mcHistTitle">Distribution · 1wk · price shock</div>
+            <canvas id="mcHistogram" class="mc-canvas" width="560" height="180"></canvas>
+          </div>
+          <div id="timelineLegend" class="legend"></div>
+        </details>
+      </article>
+
+      <article class="card" id="procurementCard">
+        <h2>Recommended Actions</h2>
+        <div class="metrics">
+          <div><span>Decision score</span><strong id="procDecisionScore">-</strong></div>
+          <div><span>Selected</span><strong id="procSelectedCount">-</strong></div>
+          <div><span>Rejected</span><strong id="procRejectedCount">-</strong></div>
+        </div>
+        <p id="procExecSummary" class="section-help">Awaiting optimization recommendation.</p>
+        <details id="procAnalysisDetails" class="panel-details" style="margin-top:8px;">
+          <summary>View Optimization Analysis</summary>
+          <div class="op-loop" id="opLoopCard">
+            <div class="op-loop-title">Operational Loop</div>
+            <div class="op-loop-grid">
+              <div><span>Expected effect</span><strong id="opExpectedEffect">-</strong></div>
+              <div><span>Monitor</span><strong id="opMonitor">-</strong></div>
+              <div><span>Trigger</span><strong id="opTrigger">-</strong></div>
+              <div><span>Replan action</span><strong id="opReplan">-</strong></div>
+            </div>
+          </div>
+          <details class="trace-card" id="recommendationTrace" open>
+            <summary>Recommendation Trace (Rule → Evidence → Simulation → Optimization → Decision)</summary>
+            <div class="trace-grid">
+              <button type="button" class="trace-step" data-step="rule"><span>Rule</span><strong id="rtRule">-</strong></button>
+              <button type="button" class="trace-step" data-step="evidence"><span>Evidence</span><strong id="rtEvidence">-</strong></button>
+              <button type="button" class="trace-step" data-step="simulation"><span>Simulation</span><strong id="rtSimulation">-</strong></button>
+              <button type="button" class="trace-step" data-step="optimization"><span>Optimization</span><strong id="rtOptimization">-</strong></button>
+              <button type="button" class="trace-step" data-step="decision"><span>Decision rationale</span><strong id="rtDecision">-</strong></button>
+            </div>
+          </details>
+          <div id="procList"></div>
+          <div class="outcome-card" id="expectedOutcomeCard">
+            <h3>Expected Business Outcome (if action is followed)</h3>
+            <div class="metrics">
+              <div><span>Expected savings</span><strong id="outSavings">-</strong></div>
+              <div><span>Supply continuity</span><strong id="outContinuity">-</strong></div>
+              <div><span>Import coverage</span><strong id="outCoverage">-</strong></div>
+            </div>
+            <button id="traceEvidenceBtn" type="button" class="btn-secondary" style="margin-top:8px;">Trace Recommendation To Evidence</button>
+          </div>
+        </details>
+      </article>
+
+      <article class="card bt-card" id="validationCard">
+        <p class="section-kicker">5. Validation</p>
+        <h2>Validation · Historical Replay</h2>
+        <p class="bt-subtitle">
+          Replay every structured event in a chosen window through the full pipeline
+          and measure how consistently the agents scored them.
+        </p>
+        <p id="btTrustSummary" class="section-help">Run validation to estimate how often recommendations match similar historical outcomes.</p>
+
+        <button id="btRunPrimary" type="button">Run Validation</button>
+
+        <details id="btDetails" class="panel-details" style="margin-top:10px;">
+          <summary>View Validation Details</summary>
+
+          <div class="bt-presets" id="btPresets" role="tablist">
+            <button type="button" data-preset="24h">Last 24h</button>
+            <button type="button" data-preset="7d" class="active">Last 7 days</button>
+            <button type="button" data-preset="30d">Last 30 days</button>
+            <button type="button" data-preset="90d">Last 90 days</button>
+            <button type="button" data-preset="ytd">YTD</button>
+            <button type="button" data-preset="custom">Custom</button>
+          </div>
+
+          <div class="bt-range" id="btCustomRange">
+            <label>
+              Start
+              <input id="btStart" type="datetime-local" />
+            </label>
+            <label>
+              End
+              <input id="btEnd" type="datetime-local" />
+            </label>
+            <button id="btBtn">Run Validation</button>
+          </div>
+
+          <div class="bt-metrics" id="btMetrics">
+            <div class="bt-metric">
+              <span>Events replayed</span>
+              <strong id="btEvents">-</strong>
+            </div>
+            <div class="bt-metric">
+              <span>Calibration score</span>
+              <strong id="btCalib">-</strong>
+              <div class="bt-gauge"><div id="btCalibBar" class="bt-gauge-fill" style="width:0%"></div></div>
+              <em id="btCalibLabel" class="bt-gauge-label">–</em>
+            </div>
+            <div class="bt-metric">
+              <span>Disagreement rate</span>
+              <strong id="btDisagreeRate">-</strong>
+              <em id="btDisagreeCount" class="bt-gauge-label">–</em>
+            </div>
+            <div class="bt-metric">
+              <span>Mean confidence (hypothesis → reconciled)</span>
+              <strong id="btMeanConf">-</strong>
+            </div>
+            <div class="bt-metric">
+              <span>Prediction hit rate (predicted vs actual)</span>
+              <strong id="btAccuracy">-</strong>
+            </div>
+          </div>
+
+          <div class="bt-chart-wrap">
+            <div class="bt-chart-title">Per-event confidence timeline (green = hypothesis · teal = reconciled · pink dot = disagreement)</div>
+            <canvas id="btTimeline" class="mc-canvas" width="900" height="180"></canvas>
+          </div>
+
+          <div class="bt-table-wrap">
+            <table class="bt-table" id="btTable">
+              <thead>
+                <tr>
+                  <th data-sort="event_ts">When</th>
+                  <th data-sort="action_type">Action</th>
+                  <th data-sort="target">Target</th>
+                  <th data-sort="hypothesis_confidence">Hyp.</th>
+                  <th data-sort="reconciled_confidence">Rec.</th>
+                  <th data-sort="predicted_disruption_prob">Pred.</th>
+                  <th data-sort="actual_outcome">Actual</th>
+                  <th data-sort="matched">Match</th>
+                  <th data-sort="confidence_delta">Δ</th>
+                  <th data-sort="disagreement">Flag</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="btTableBody">
+                <tr><td colspan="11" class="bt-empty">No validation run yet. Pick a range and hit <em>Run Validation</em>.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </article>
+    </section>
+
+    <footer class="world-state card" id="worldStateFooter" aria-label="Current world state">
+      <div class="ws-title-wrap">
+        <span class="mission-kicker">Current World State</span>
+        <strong id="wsTwinStatus">Digital Twin: -</strong>
+      </div>
+      <div class="ws-grid">
+        <div><span>Last synchronized</span><strong id="wsSyncAgo">-</strong></div>
+        <div><span>Sources</span><strong id="wsSources">-</strong></div>
+        <div><span>Events</span><strong id="wsEvents">-</strong></div>
+        <div><span>Agents</span><strong id="wsAgents">6</strong></div>
+        <div><span>Decision Confidence</span><strong id="wsConfidence">-</strong></div>
+      </div>
+    </footer>
+  </main>
+
+  <script
+    src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"
+  ></script>
+  <script src="https://unpkg.com/deck.gl@9.0.36/dist.min.js"></script>
+  <script src="/frontend/app.js?v=20260718-freshness-v9" defer></script>
+</body>
+</html>
